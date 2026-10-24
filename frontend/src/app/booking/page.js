@@ -19,10 +19,13 @@ export default function BookingPage() {
     const [bookingError, setBookingError] = useState("");
     const [submitting, setSubmitting] = useState(false);
 
-    // Read chargerId from the URL after the page mounts.
+    // Read the selected charger ID from the URL after the page mounts.
     useEffect(() => {
         const params = new URLSearchParams(window.location.search);
-        setChargerId(params.get("chargerId"));
+        const selectedId =
+            params.get("charger_id") || params.get("chargerId");
+
+        setChargerId(selectedId);
     }, []);
 
     // Fetch the selected charger's details.
