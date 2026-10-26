@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import dynamic from "next/dynamic";
-import { useSearchParams } from "next/navigation";
+
 
 const ChargerMap = dynamic(
     () => import("../components/ChargerMap"),
@@ -26,8 +26,7 @@ export default function ChargersPage() {
     const [searchTerm, setSearchTerm] = useState("");
     const [connectorFilter, setConnectorFilter] = useState("All");
     const [maxPrice, setMaxPrice] = useState("All");
-    const searchParams = useSearchParams();
-    const chargerId = searchParams.get("charger_id");
+
 
     const connectorTypes = [
         "All",
@@ -77,63 +76,118 @@ export default function ChargersPage() {
         fetchChargers();
     }, []);
 
+
     return (
-        <main className="min-h-screen bg-[#101412] px-6 py-10 text-white">
-            <div className="mx-auto max-w-7xl">
-                {/* Page heading */}
-                <h1 className="text-3xl font-bold">
-                    Find Your Charger
-                </h1>
-
-                <p className="mt-2 text-gray-400">
-                    Discover EV charging stations near you.
+        <main className="relative -top-16 min-h-screen overflow-x-hidden bg-[#101412] px-4 py-10 text-white sm:top-0 sm:px-6 lg:translate-x-64">
+            <div className="mx-auto w-full max-w-7xl">
+                <p className="mb-3 ml-14 text-sm font-medium text-[#B5FFCE] sm:ml-0">
+                    Your journey starts here.
                 </p>
+                {/* Page heading */}
+                <div className="mb-8 pl-0 sm:pl-0">
+                    <div className="mb-4 mt-4 inline-flex items-center gap-2 rounded-full border border-[#B5FFCE]/15 bg-[#B5FFCE]/[0.06] px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.2em] text-[#B5FFCE]">
+                        <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[#B5FFCE]" />
+                        EV charging network
+                    </div>
 
-                {/* Charger map */}
-                {/* Search and Filters */}
-                <div className="mt-8 rounded-2xl border border-white/10 bg-[#191F1B] p-4">
-                    <div className="grid gap-4 md:grid-cols-3">
-                        {/* Search */}
+                    <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl lg:text-5xl">
+                        Find your next{" "}
+                        <span className="text-[#B5FFCE]">charge.</span>
+                    </h1>
+
+                    <p className="mt-3 max-w-xl text-sm leading-6 text-white/45 sm:text-base">
+                        Discover charging stations, compare prices, and find
+                        the right charger for your journey.
+                    </p>
+                </div>
+
+                {/* Search and filters */}
+                <section className="mb-6 rounded-2xl border border-white/[0.09] bg-gradient-to-br from-[#19221C] to-[#111713] p-4 shadow-xl shadow-black/10 sm:p-6">
+                    <div className="mb-5 flex items-center justify-between gap-3">
                         <div>
-                            <label className="mb-2 block text-sm text-gray-400">
-                                Search by name or location
-                            </label>
-                            <input
-                                type="text"
-                                value={searchTerm}
-                                onChange={(e) => setSearchTerm(e.target.value)}
-                                placeholder="Search chargers..."
-                                className="w-full rounded-xl border border-white/10 bg-[#101412] px-4 py-3 text-white outline-none transition placeholder:text-gray-500 focus:border-[#B5FFCE]"
-                            />
+                            <h2 className="text-sm font-semibold text-white/90">
+                                Explore charging stations
+                            </h2>
+                            <p className="mt-1 text-xs text-white/40">
+                                Refine your search to find a suitable charger.
+                            </p>
                         </div>
 
-                        {/* Connector Filter */}
+                        <span className="shrink-0 rounded-lg border border-white/[0.08] bg-black/20 px-3 py-2 text-xs text-white/55">
+                            {filteredChargers.length} found
+                        </span>
+                    </div>
+
+                    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-[1.5fr_1fr_1fr]">
+                        {/* Search */}
                         <div>
-                            <label className="mb-2 block text-sm text-gray-400">
+                            <label className="mb-2 block text-xs font-medium text-white/55">
+                                Search location or station
+                            </label>
+
+                            <div className="flex items-center gap-3 rounded-xl border border-white/[0.09] bg-[#0D120F] px-4 transition focus-within:border-[#B5FFCE]/50">
+                                <svg
+                                    className="h-5 w-5 shrink-0 text-[#B5FFCE]/70"
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    strokeWidth="1.7"
+                                    aria-hidden="true"
+                                >
+                                    <circle cx="11" cy="11" r="7" />
+                                    <path d="m16 16 4 4" />
+                                </svg>
+
+                                <input
+                                    type="text"
+                                    value={searchTerm}
+                                    onChange={(e) => setSearchTerm(e.target.value)}
+                                    placeholder="Try a station name or address"
+                                    className="min-w-0 w-full bg-transparent py-3.5 text-sm text-white outline-none placeholder:text-white/25"
+                                />
+
+                                {searchTerm && (
+                                    <button
+                                        type="button"
+                                        onClick={() => setSearchTerm("")}
+                                        aria-label="Clear search"
+                                        className="text-white/40 transition hover:text-white"
+                                    >
+                                        ×
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* Connector */}
+                        <div>
+                            <label className="mb-2 block text-xs font-medium text-white/55">
                                 Connector type
                             </label>
+
                             <select
                                 value={connectorFilter}
                                 onChange={(e) => setConnectorFilter(e.target.value)}
-                                className="w-full rounded-xl border border-white/10 bg-[#101412] px-4 py-3 text-white outline-none focus:border-[#B5FFCE]"
+                                className="w-full rounded-xl border border-white/[0.09] bg-[#0D120F] px-4 py-3.5 text-sm text-white outline-none transition focus:border-[#B5FFCE]/50"
                             >
                                 {connectorTypes.map((type) => (
                                     <option key={type} value={type}>
-                                        {type}
+                                        {type === "All" ? "All connectors" : type}
                                     </option>
                                 ))}
                             </select>
                         </div>
 
-                        {/* Price Filter */}
+                        {/* Price */}
                         <div>
-                            <label className="mb-2 block text-sm text-gray-400">
-                                Maximum price per hour
+                            <label className="mb-2 block text-xs font-medium text-white/55">
+                                Maximum hourly price
                             </label>
+
                             <select
                                 value={maxPrice}
                                 onChange={(e) => setMaxPrice(e.target.value)}
-                                className="w-full rounded-xl border border-white/10 bg-[#101412] px-4 py-3 text-white outline-none focus:border-[#B5FFCE]"
+                                className="w-full rounded-xl border border-white/[0.09] bg-[#0D120F] px-4 py-3.5 text-sm text-white outline-none transition focus:border-[#B5FFCE]/50"
                             >
                                 <option value="All">Any price</option>
                                 <option value="50">Up to ₹50</option>
@@ -144,39 +198,133 @@ export default function ChargersPage() {
                             </select>
                         </div>
                     </div>
-                </div>
+
+                    {(searchTerm || connectorFilter !== "All" || maxPrice !== "All") && (
+                        <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-white/[0.06] pt-4">
+                            <span className="mr-1 text-xs text-white/40">
+                                Active filters
+                            </span>
+
+                            {searchTerm && (
+                                <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 text-xs text-white/70">
+                                    Search: {searchTerm}
+                                </span>
+                            )}
+
+                            {connectorFilter !== "All" && (
+                                <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 text-xs text-white/70">
+                                    {connectorFilter}
+                                </span>
+                            )}
+
+                            {maxPrice !== "All" && (
+                                <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 text-xs text-white/70">
+                                    Up to ₹{maxPrice}/hr
+                                </span>
+                            )}
+
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setSearchTerm("");
+                                    setConnectorFilter("All");
+                                    setMaxPrice("All");
+                                }}
+                                className="ml-auto text-xs font-medium text-[#B5FFCE] transition hover:text-white"
+                            >
+                                Clear all
+                            </button>
+                        </div>
+                    )}
+                </section>
 
                 {/* Map */}
-                <div className="mt-6">
-                    <ChargerMap
-                        chargers={filteredChargers}
-                        onSelectCharger={setSelectedCharger}
-                    />
-                </div>
+                <section className="overflow-hidden rounded-2xl border border-white/[0.09] bg-[#151B17] shadow-2xl shadow-black/20">
+                    <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/[0.07] px-4 py-4 sm:px-5">
+                        <div className="flex items-center gap-3">
+                            <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-[#B5FFCE]/15 bg-[#B5FFCE]/[0.07] text-[#B5FFCE]">
+                                <svg
+                                    className="h-5 w-5"
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    strokeWidth="1.7"
+                                    aria-hidden="true"
+                                >
+                                    <path d="M20 10c0 5-8 11-8 11S4 15 4 10a8 8 0 1 1 16 0Z" />
+                                    <circle cx="12" cy="10" r="2.5" />
+                                </svg>
+                            </div>
 
-                {/* Loading state */}
+                            <div>
+                                <h2 className="text-sm font-semibold">
+                                    Charging map
+                                </h2>
+                                <p className="mt-1 text-xs text-white/40">
+                                    Explore available stations
+                                </p>
+                            </div>
+                        </div>
+
+                        <div className="flex items-center gap-2 rounded-full border border-[#B5FFCE]/10 bg-[#B5FFCE]/[0.05] px-3 py-2">
+                            <span className="h-1.5 w-1.5 rounded-full bg-[#B5FFCE]" />
+                            <span className="text-[10px] font-medium uppercase tracking-wider text-[#B5FFCE]">
+                                {filteredChargers.length} stations
+                            </span>
+                        </div>
+                    </div>
+
+                    <div className="p-2 sm:p-3">
+                        <div className="overflow-hidden rounded-xl">
+                            <ChargerMap
+                                chargers={filteredChargers}
+                                onSelectCharger={setSelectedCharger}
+                            />
+                        </div>
+                    </div>
+
+                    <div className="flex flex-wrap items-center justify-between gap-2 border-t border-white/[0.06] px-4 py-3 sm:px-5">
+                        <p className="text-xs text-white/35">
+                            Select a map marker to explore a station.
+                        </p>
+                        <p className="text-xs text-white/35">
+                            Powered by Voltreo
+                        </p>
+                    </div>
+                </section>
+
+                {/* Loading */}
                 {loading && (
-                    <p className="mt-8 text-gray-400">
-                        Loading chargers...
-                    </p>
+                    <div className="mt-6 flex items-center gap-3 rounded-xl border border-white/[0.07] bg-[#151B17] p-5">
+                        <div className="h-5 w-5 animate-spin rounded-full border-2 border-white/10 border-t-[#B5FFCE]" />
+                        <p className="text-sm text-white/50">
+                            Finding charging stations...
+                        </p>
+                    </div>
                 )}
 
-                {/* Error state */}
+                {/* Error */}
                 {error && (
-                    <p className="mt-8 text-red-400">
-                        {error}
-                    </p>
+                    <div className="mt-6 rounded-xl border border-red-400/15 bg-red-400/[0.04] p-5">
+                        <p className="text-sm text-red-300">{error}</p>
+                    </div>
                 )}
 
                 {/* Empty state */}
                 {!loading && !error && filteredChargers.length === 0 && (
-                    <div className="mt-8 rounded-2xl border border-white/10 bg-[#191F1B] px-6 py-10 text-center">
-                        <p className="text-lg font-semibold text-white">
-                            No chargers found
+                    <div className="mt-6 rounded-2xl border border-dashed border-white/[0.12] bg-[#151B17] px-6 py-12 text-center sm:py-16">
+                        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl border border-[#B5FFCE]/15 bg-[#B5FFCE]/[0.06] text-2xl">
+                            ⚡
+                        </div>
+
+                        <h2 className="mt-5 text-lg font-semibold">
+                            No stations match your search
+                        </h2>
+
+                        <p className="mx-auto mt-2 max-w-sm text-sm leading-6 text-white/40">
+                            Try a different location, connector type, or price range.
                         </p>
-                        <p className="mt-2 text-sm text-gray-400">
-                            Try changing your search or filters to find available chargers.
-                        </p>
+
                         <button
                             type="button"
                             onClick={() => {
@@ -184,27 +332,28 @@ export default function ChargersPage() {
                                 setConnectorFilter("All");
                                 setMaxPrice("All");
                             }}
-                            className="mt-5 rounded-xl bg-[#B5FFCE] px-5 py-2.5 font-semibold text-[#102019] transition hover:bg-[#9df5bb]"
+                            className="mt-5 rounded-xl bg-[#B5FFCE] px-5 py-3 text-sm font-semibold text-[#102019] transition hover:bg-[#9df5bb]"
                         >
-                            Clear filters
+                            Reset filters
                         </button>
                     </div>
                 )}
 
                 {/* Selected charger details */}
                 {selectedCharger && (
-                    <section className="mt-6 rounded-2xl border border-[#B5FFCE]/20 bg-[#191F1B] p-6">
-                        <div className="flex items-start justify-between gap-4">
-                            <div>
-                                <p className="text-sm font-medium text-[#B5FFCE]">
-                                    CHARGER DETAILS
-                                </p>
+                    <section className="mt-6 overflow-hidden rounded-2xl border border-[#B5FFCE]/20 bg-gradient-to-br from-[#19251D] to-[#111713] shadow-xl shadow-black/10">
+                        <div className="flex flex-col justify-between gap-4 border-b border-white/[0.07] p-5 sm:flex-row sm:items-start sm:p-6">
+                            <div className="min-w-0">
+                                <div className="inline-flex items-center gap-2 rounded-full border border-[#B5FFCE]/15 bg-[#B5FFCE]/[0.06] px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-[#B5FFCE]">
+                                    <span className="h-1.5 w-1.5 rounded-full bg-[#B5FFCE]" />
+                                    Station selected
+                                </div>
 
-                                <h2 className="mt-2 text-xl font-semibold">
+                                <h2 className="mt-4 break-words text-xl font-semibold tracking-tight sm:text-2xl">
                                     {selectedCharger.title}
                                 </h2>
 
-                                <p className="mt-2 text-sm text-gray-400">
+                                <p className="mt-2 break-words text-sm leading-6 text-white/45">
                                     {selectedCharger.address}
                                 </p>
                             </div>
@@ -213,136 +362,193 @@ export default function ChargersPage() {
                                 type="button"
                                 onClick={() => setSelectedCharger(null)}
                                 aria-label="Close charger details"
-                                className="rounded-lg px-3 py-1 text-gray-400 hover:bg-white/10 hover:text-white"
+                                className="self-end rounded-xl border border-white/10 px-3 py-2 text-sm text-white/50 transition hover:bg-white/[0.06] hover:text-white sm:self-start"
                             >
                                 ✕
                             </button>
                         </div>
 
-                        <div className="mt-5 grid grid-cols-2 gap-4 sm:grid-cols-3">
-                            <div>
-                                <p className="text-sm text-gray-400">
-                                    Connector
+                        <div className="grid grid-cols-1 gap-3 p-4 sm:grid-cols-3 sm:p-6">
+                            <div className="rounded-xl border border-white/[0.07] bg-black/15 p-4">
+                                <p className="text-xs text-white/40">
+                                    Connector type
                                 </p>
-                                <p className="mt-1 font-medium">
+                                <p className="mt-2 break-words text-sm font-semibold">
                                     {selectedCharger.charger_type}
                                 </p>
                             </div>
 
-                            <div>
-                                <p className="text-sm text-gray-400">
+                            <div className="rounded-xl border border-white/[0.07] bg-black/15 p-4">
+                                <p className="text-xs text-white/40">
                                     Charging power
                                 </p>
-                                <p className="mt-1 font-medium">
+                                <p className="mt-2 text-sm font-semibold">
                                     {selectedCharger.power_kw} kW
                                 </p>
                             </div>
 
-                            <div>
-                                <p className="text-sm text-gray-400">
-                                    Price
+                            <div className="rounded-xl border border-[#B5FFCE]/15 bg-[#B5FFCE]/[0.04] p-4">
+                                <p className="text-xs text-white/40">
+                                    Price per hour
                                 </p>
-                                <p className="mt-1 font-medium">
-                                    ₹
-                                    {Number(
-                                        selectedCharger.price_per_hour
-                                    ).toFixed(2)}
-                                    /hour
+                                <p className="mt-2 text-lg font-semibold text-[#B5FFCE]">
+                                    ₹{Number(selectedCharger.price_per_hour).toFixed(2)}
+                                    <span className="ml-1 text-xs font-normal text-white/40">
+                                        /hour
+                                    </span>
                                 </p>
                             </div>
                         </div>
 
-                        <button
-                            type="button"
-                            onClick={() => {
-                                window.location.href = `/booking?charger_id=${selectedCharger.id}`;
-                            }}
-                            className="mt-6 inline-flex w-fit items-center justify-center rounded-xl bg-[#B5FFCE] px-6 py-3 font-semibold text-[#102019] transition hover:bg-[#9df5bb]"
-                        >
-                            Book This Charger
-                        </button>
+                        <div className="flex flex-col gap-3 border-t border-white/[0.07] p-4 sm:flex-row sm:items-center sm:justify-between sm:px-6 sm:py-5">
+                            <p className="text-xs leading-5 text-white/35">
+                                Ready to go? Reserve this station for your next charge.
+                            </p>
+
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    window.location.href = `/booking?charger_id=${selectedCharger.id}`;
+                                }}
+                                className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#B5FFCE] px-6 py-3.5 text-sm font-semibold text-[#102019] transition hover:bg-[#9df5bb] sm:w-auto"
+                            >
+                                Book this charger
+                                <span aria-hidden="true">→</span>
+                            </button>
+                        </div>
                     </section>
                 )}
 
-
-
-                {/* Charger cards */}
+                {/* Available chargers */}
                 {!loading && !error && filteredChargers.length > 0 && (
-                    <section className="mt-10">
-                        <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
-                            <h2 className="text-2xl font-semibold">
-                                Available Chargers
-                            </h2>
+                    <section className="mt-10 sm:mt-12">
+                        <div className="mb-6 flex flex-col justify-between gap-3 sm:flex-row sm:items-end">
+                            <div>
+                                <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-[#B5FFCE]/65">
+                                    Your next stop
+                                </p>
+                                <h2 className="mt-2 text-2xl font-semibold tracking-tight sm:text-3xl">
+                                    Available chargers
+                                </h2>
+                                <p className="mt-2 text-sm text-white/40">
+                                    Compare stations and choose what works for you.
+                                </p>
+                            </div>
 
-                            <p className="text-sm text-gray-400">
+                            <span className="w-fit rounded-xl border border-white/[0.08] bg-white/[0.025] px-3 py-2 text-xs text-white/50">
                                 {filteredChargers.length}{" "}
-                                {filteredChargers.length === 1
-                                    ? "station"
-                                    : "stations"}{" "}
-                                found
-                            </p>
+                                {filteredChargers.length === 1 ? "station" : "stations"}
+                            </span>
                         </div>
 
-                        <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+                        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
                             {filteredChargers.map((charger) => (
                                 <article
                                     key={charger.id}
-                                    className={`flex min-w-0 flex-col rounded-2xl border bg-[#191F1B] p-5 transition ${selectedCharger?.id === charger.id
-                                        ? "border-[#B5FFCE]/60"
-                                        : "border-white/10 hover:border-white/25"
+                                    className={`group flex min-w-0 flex-col overflow-hidden rounded-2xl border bg-gradient-to-br from-[#19211B] to-[#111713] transition duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-black/20 ${selectedCharger?.id === charger.id
+                                        ? "border-[#B5FFCE]/50 shadow-lg shadow-[#B5FFCE]/[0.04]"
+                                        : "border-white/[0.08] hover:border-white/[0.17]"
                                         }`}
                                 >
-                                    <div className="flex items-start justify-between gap-3">
-                                        <h3
-                                            title={charger.title}
-                                            className="min-w-0 flex-1 truncate text-lg font-semibold"
-                                        >
-                                            {charger.title}
-                                        </h3>
+                                    <div className="flex items-center justify-between gap-3 border-b border-white/[0.06] px-5 py-4">
+                                        <div className="flex items-center gap-2 text-xs text-white/45">
+                                            <span className="flex h-8 w-8 items-center justify-center rounded-lg border border-[#B5FFCE]/10 bg-[#B5FFCE]/[0.05] text-base text-[#B5FFCE]">
+                                                ⚡
+                                            </span>
+                                            Charging station
+                                        </div>
 
-                                        <span className="shrink-0 rounded-full bg-[#B5FFCE]/10 px-2 py-1 text-xs text-[#B5FFCE]">
+                                        <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-[#B5FFCE]/15 bg-[#B5FFCE]/[0.05] px-2.5 py-1.5 text-[10px] font-medium text-[#B5FFCE]">
+                                            <span className="h-1.5 w-1.5 rounded-full bg-[#B5FFCE]" />
                                             Approved
                                         </span>
                                     </div>
 
-                                    <p className="mt-3 text-sm text-gray-400">
-                                        {charger.address}
-                                    </p>
+                                    <div className="flex flex-1 flex-col p-5">
+                                        <h3
+                                            title={charger.title}
+                                            className="break-words text-lg font-semibold tracking-tight transition group-hover:text-[#B5FFCE]"
+                                        >
+                                            {charger.title}
+                                        </h3>
 
-                                    <div className="mt-5 space-y-2 text-sm text-gray-300">
-                                        <p>
-                                            Connector:{" "}
-                                            {charger.charger_type}
+                                        <p className="mt-2 flex items-start gap-2 text-sm leading-6 text-white/40">
+                                            <span className="mt-0.5 shrink-0 text-[#B5FFCE]/70">
+                                                ⌖
+                                            </span>
+                                            <span className="min-w-0 break-words">
+                                                {charger.address || "Address unavailable"}
+                                            </span>
                                         </p>
 
-                                        <p>
-                                            Power: {charger.power_kw} kW
-                                        </p>
+                                        <div className="mt-5 grid grid-cols-2 gap-3">
+                                            <div className="rounded-xl border border-white/[0.06] bg-black/15 p-3">
+                                                <p className="text-[10px] uppercase tracking-wider text-white/35">
+                                                    Connector
+                                                </p>
+                                                <p className="mt-2 break-words text-sm font-medium text-white/85">
+                                                    {charger.charger_type}
+                                                </p>
+                                            </div>
 
-                                        <p>
-                                            Price: ₹
-                                            {Number(
-                                                charger.price_per_hour
-                                            ).toFixed(2)}
-                                            /hour
-                                        </p>
+                                            <div className="rounded-xl border border-white/[0.06] bg-black/15 p-3">
+                                                <p className="text-[10px] uppercase tracking-wider text-white/35">
+                                                    Power output
+                                                </p>
+                                                <p className="mt-2 text-sm font-medium text-white/85">
+                                                    {charger.power_kw} kW
+                                                </p>
+                                            </div>
+                                        </div>
+
+                                        <div className="mt-5 flex items-end justify-between gap-3 border-t border-white/[0.07] pt-4">
+                                            <div>
+                                                <p className="text-xs text-white/40">
+                                                    Charging rate
+                                                </p>
+                                                <p className="mt-1 text-xl font-semibold tracking-tight text-[#B5FFCE]">
+                                                    ₹{Number(charger.price_per_hour).toFixed(2)}
+                                                    <span className="ml-1 text-xs font-normal text-white/40">
+                                                        /hr
+                                                    </span>
+                                                </p>
+                                            </div>
+
+                                            <span className="pb-1 text-[10px] text-white/30">
+                                                Per hour
+                                            </span>
+                                        </div>
+
+                                        <button
+                                            type="button"
+                                            onClick={() => setSelectedCharger(charger)}
+                                            className={`mt-5 inline-flex w-full items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-semibold transition ${selectedCharger?.id === charger.id
+                                                ? "border border-[#B5FFCE]/20 bg-[#B5FFCE]/[0.08] text-[#B5FFCE]"
+                                                : "bg-white/[0.05] text-white hover:bg-[#B5FFCE] hover:text-[#102019]"
+                                                }`}
+                                        >
+                                            {selectedCharger?.id === charger.id
+                                                ? "Station selected"
+                                                : "View station details"}
+                                            <span aria-hidden="true">→</span>
+                                        </button>
                                     </div>
-
-                                    <button
-                                        type="button"
-                                        onClick={() =>
-                                            setSelectedCharger(charger)
-                                        }
-                                        className="mt-6 w-full rounded-xl bg-[#B5FFCE] px-4 py-3 font-semibold text-[#102019] transition hover:bg-[#9df5bb]"
-                                    >
-                                        View Details
-                                    </button>
                                 </article>
                             ))}
                         </div>
                     </section>
                 )}
+
+                <footer className="mt-12 border-t border-white/[0.06] py-6 text-center">
+                    <p className="text-xs text-white/25">
+                        Find your charge. Keep your journey moving.
+                    </p>
+                    <p className="mt-2 text-[10px] tracking-[0.18em] text-[#B5FFCE]/35">
+                        VOLTREO
+                    </p>
+                </footer>
             </div>
         </main>
     );
+
 }

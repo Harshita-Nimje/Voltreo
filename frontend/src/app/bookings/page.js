@@ -169,17 +169,11 @@ export default function BookingsPage() {
     }
 
     return (
-        <div className="min-h-screen bg-[#080D09] text-white lg:pl-64">
-            <main className="mx-auto max-w-6xl px-5 pb-16 pt-8 sm:px-8 lg:pt-12">
-                <Link
-                    href="/dashboard"
-                    className="group inline-flex items-center gap-2 text-sm text-white/45 transition hover:text-[#B8F28B]"
-                >
-                    <span className="transition-transform group-hover:-translate-x-1">
-                        ←
-                    </span>
-                    Back to dashboard
-                </Link>
+        <div className="min-h-screen bg-[#080D09] text-white lg:pl-94">
+            <main className="relative -top-10 mx-auto max-w-6xl px-5 pb-16 pt-8 sm:top-0 sm:px-8 lg:pt-12">
+                <p className="relative -mt-2 pl-15 text-xs text-white/35 sm:mt-0 sm:pl-0">
+                    Your Activity / <span className="text-[#B8F28B]">My Bookings</span>
+                </p>
 
                 <section className="relative mt-8 overflow-hidden rounded-3xl border border-white/[0.08] bg-gradient-to-br from-[#142119] via-[#0E1711] to-[#0B100C] p-6 sm:p-9 lg:p-10">
                     <div className="pointer-events-none absolute -right-12 -top-20 h-64 w-64 rounded-full bg-[#B8F28B]/[0.07] blur-3xl" />
@@ -279,8 +273,8 @@ export default function BookingsPage() {
                                     key={item.id}
                                     onClick={() => setFilter(item.id)}
                                     className={`shrink-0 rounded-xl border px-4 py-2.5 text-xs font-medium transition ${filter === item.id
-                                            ? "border-[#B8F28B]/25 bg-[#B8F28B]/10 text-[#B8F28B]"
-                                            : "border-white/[0.08] bg-white/[0.02] text-white/45 hover:border-white/15 hover:text-white/80"
+                                        ? "border-[#B8F28B]/25 bg-[#B8F28B]/10 text-[#B8F28B]"
+                                        : "border-white/[0.08] bg-white/[0.02] text-white/45 hover:border-white/15 hover:text-white/80"
                                         }`}
                                 >
                                     {item.label}
@@ -349,12 +343,12 @@ export default function BookingsPage() {
                                     <div className="flex flex-col sm:flex-row">
                                         <div
                                             className={`hidden w-1 shrink-0 sm:block ${booking.status === "approved"
-                                                    ? "bg-[#B8F28B]/70"
-                                                    : booking.status === "pending"
-                                                        ? "bg-amber-300/70"
-                                                        : booking.status === "rejected"
-                                                            ? "bg-red-300/50"
-                                                            : "bg-white/10"
+                                                ? "bg-[#B8F28B]/70"
+                                                : booking.status === "pending"
+                                                    ? "bg-amber-300/70"
+                                                    : booking.status === "rejected"
+                                                        ? "bg-red-300/50"
+                                                        : "bg-white/10"
                                                 }`}
                                         />
 

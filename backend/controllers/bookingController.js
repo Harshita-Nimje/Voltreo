@@ -356,10 +356,42 @@ const cancelBooking = async (req, res) => {
     }
 };
 
+const getBookedSlots = async (req, res) => {
+    try {
+        const { charger_id } = req.params;
+
+        if (!charger_id || !Number.isInteger(Number(charger_id))) {
+            return res.status(400).json({
+                message: "A valid charger ID is required.",
+            });
+        }
+
+        const result = await pool.query(
+            `SELECT start_time, end_time
+             FROM bookings
+             WHERE charger_id = $1
+               AND status IN ('pending', 'approved')
+             ORDER BY start_time ASC`,
+            [charger_id]
+        );
+
+        return res.status(200).json({
+            bookedSlots: result.rows,
+        });
+    } catch (error) {
+        console.error("Fetch booked slots error:", error.message);
+
+        return res.status(500).json({
+            message: "Unable to fetch booked time slots.",
+        });
+    }
+};
+
 module.exports = {
     createBooking,
     getMyBookings,
     getHostBookings,
     updateBookingStatus,
     cancelBooking,
+    getBookedSlots,
 };

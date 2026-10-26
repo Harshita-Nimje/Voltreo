@@ -12,6 +12,7 @@ const {
     getHostBookings,
     updateBookingStatus,
     cancelBooking,
+    getBookedSlots,
 } = require("../controllers/bookingController");
 
 // Driver-only routes
@@ -21,6 +22,9 @@ router.get(
     authorizeUser,
     getMyBookings
 );
+
+// Public route: view booked time slots for a charger
+router.get("/charger/:charger_id/booked-slots", getBookedSlots);
 
 router.post(
     "/",

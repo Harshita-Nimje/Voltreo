@@ -168,7 +168,7 @@ export default function DashboardPage() {
     }
 
     return (
-        <div className="min-h-screen bg-[#080D0B] text-white">
+        <div className="min-h-screen bg-[#080D0B] text-white lg:ml-60">
             <div className="min-h-screen lg:pl-64">
                 {/* Sidebar */}
 
@@ -257,12 +257,12 @@ export default function DashboardPage() {
                 {/* Main content */}
                 <section
                     id="overview"
-                    className="min-w-0 flex-1 px-5 py-7 sm:px-8 sm:py-9 lg:px-12 lg:py-10"
+                    className="relative -top-10 min-w-0 flex-1 px-5 py-7 sm:top-0 sm:px-8 sm:py-9 lg:px-12 lg:py-10"
                 >
                     <div className="mx-auto max-w-6xl">
                         {/* Top bar */}
                         <div className="mb-10 flex flex-wrap items-center justify-between gap-4">
-                            <div>
+                            <div className="-mt-3 pl-14 sm:mt-0 sm:pl-0">
                                 <p className="text-xs text-white/35">
                                     Workspace /{" "}
                                     <span className="text-[#B5FFCE]">Overview</span>

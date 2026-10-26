@@ -6,11 +6,33 @@ import { useRouter } from "next/navigation";
 
 const API_URL = "http://localhost:5000/api";
 
+function hasBookingConflict(bookingDate, startTime, endTime, bookedSlots) {
+    if (!bookingDate || !startTime || !endTime) {
+        return false;
+    }
+
+    const selectedStart = new Date(
+        `${bookingDate}T${startTime}:00+05:30`
+    );
+
+    const selectedEnd = new Date(
+        `${bookingDate}T${endTime}:00+05:30`
+    );
+
+    return bookedSlots.some((slot) => {
+        const bookedStart = new Date(slot.start_time);
+        const bookedEnd = new Date(slot.end_time);
+
+        return selectedStart < bookedEnd && selectedEnd > bookedStart;
+    });
+}
+
 export default function BookingPage() {
     const router = useRouter();
 
     const [chargerId, setChargerId] = useState(null);
     const [charger, setCharger] = useState(null);
+    const [bookedSlots, setBookedSlots] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
     const [bookingDate, setBookingDate] = useState("");
@@ -124,6 +146,33 @@ export default function BookingPage() {
         return () => controller.abort();
     }, [chargerId]);
 
+    // Fetch booked time slots for the selected charger.
+    useEffect(() => {
+        if (!chargerId) return;
+
+        async function fetchBookedSlots() {
+            try {
+                const response = await fetch(
+                    `http://localhost:5000/api/bookings/charger/${chargerId}/booked-slots`
+                );
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(
+                        data.message || "Unable to load booked time slots."
+                    );
+                }
+
+                setBookedSlots(data.bookedSlots || []);
+            } catch (err) {
+                console.error("Error loading booked slots:", err);
+            }
+        }
+
+        fetchBookedSlots();
+    }, [chargerId]);
+
     function formatPrice(price) {
         return new Intl.NumberFormat("en-IN", {
             style: "currency",
@@ -171,8 +220,8 @@ export default function BookingPage() {
     }
 
     return (
-        <main className="min-h-screen bg-[#080D0B] px-5 py-10 text-white sm:px-8 sm:py-14">
-            <div className="mx-auto max-w-2xl">
+        <main className="min-h-screen bg-[#080D0B] px-5 py-10 text-white sm:translate-x-52 sm:px-8 sm:py-14">
+            <div className="mx-auto max-w-3xl">
                 <button
                     type="button"
                     onClick={() => router.push("/dashboard")}
@@ -365,6 +414,86 @@ export default function BookingPage() {
                                     </div>
                                 </div>
 
+                                <div className="rounded-xl border border-white/10 bg-white/[0.02] p-4">
+                                    <h3 className="text-sm font-semibold text-white">
+                                        Booked time slots
+                                    </h3>
+
+                                    <p className="mt-1 text-xs text-white/50">
+                                        These times are already reserved or awaiting confirmation.
+                                    </p>
+
+                                    {bookedSlots.filter((slot) => {
+                                        const slotDate = new Date(slot.start_time).toLocaleDateString(
+                                            "en-CA",
+                                            { timeZone: "Asia/Kolkata" }
+                                        );
+                                        if (new Date(slot.end_time) <= new Date()) {
+                                            return false;
+                                        }
+                                        return !bookingDate || slotDate === bookingDate;
+                                    }).length === 0 ? (
+                                        <p className="mt-3 text-sm text-[#B5FFCE]">
+                                            No booked slots found for this charger.
+                                        </p>
+                                    ) : (
+                                        <div className="mt-3 space-y-2">
+                                            {bookedSlots
+                                                .filter((slot) => {
+                                                    const slotDate = new Date(slot.start_time).toLocaleDateString(
+                                                        "en-CA",
+                                                        { timeZone: "Asia/Kolkata" }
+                                                    );
+                                                    if (new Date(slot.end_time) <= new Date()) {
+                                                        return false;
+                                                    }
+
+                                                    return !bookingDate || slotDate === bookingDate;
+                                                })
+                                                .map((slot, index) => (
+                                                    <div
+                                                        key={`${slot.start_time}-${index}`}
+                                                        className="rounded-lg border border-red-400/20 bg-red-400/[0.05] px-3 py-2"
+                                                    >
+                                                        <p className="text-sm font-medium text-red-300">
+                                                            {new Date(slot.start_time).toLocaleString(
+                                                                "en-IN",
+                                                                {
+                                                                    timeZone: "Asia/Kolkata",
+                                                                    day: "numeric",
+                                                                    month: "short",
+                                                                    year: "numeric",
+                                                                }
+                                                            )}
+                                                        </p>
+
+                                                        <p className="mt-1 text-sm text-white/70">
+                                                            {new Date(slot.start_time).toLocaleTimeString(
+                                                                "en-IN",
+                                                                {
+                                                                    timeZone: "Asia/Kolkata",
+                                                                    hour: "numeric",
+                                                                    minute: "2-digit",
+                                                                    hour12: true,
+                                                                }
+                                                            )}
+                                                            {" – "}
+                                                            {new Date(slot.end_time).toLocaleTimeString(
+                                                                "en-IN",
+                                                                {
+                                                                    timeZone: "Asia/Kolkata",
+                                                                    hour: "numeric",
+                                                                    minute: "2-digit",
+                                                                    hour12: true,
+                                                                }
+                                                            )}
+                                                        </p>
+                                                    </div>
+                                                ))}
+                                        </div>
+                                    )}
+                                </div>
+
                                 {bookingError && (
                                     <p className="rounded-xl border border-red-400/20 bg-red-400/[0.06] px-4 py-3 text-sm text-red-300">
                                         {bookingError}
@@ -461,8 +590,14 @@ export default function BookingPage() {
                                         setSubmitting(true);
 
                                         try {
-                                            const response = await fetch(
-                                                "http://localhost:5000/api/bookings",
+                                            if (hasBookingConflict(bookingDate, startTime, endTime, bookedSlots)) {
+                                                setBookingError(
+                                                    "This time slot is already booked. Please choose a different time."
+                                                );
+                                                setSubmitting(false);
+                                                return;
+                                            }
+                                            const response = await fetch(`${API_URL}/bookings`,
                                                 {
                                                     method: "POST",
                                                     headers: {
@@ -480,6 +615,12 @@ export default function BookingPage() {
                                             const data = await response.json();
 
                                             if (!response.ok) {
+                                                if (response.status === 409) {
+                                                    throw new Error(
+                                                        "This time slot is already booked. Please choose a different time."
+                                                    );
+                                                }
+
                                                 throw new Error(
                                                     data.message || "Unable to create your booking."
                                                 );
