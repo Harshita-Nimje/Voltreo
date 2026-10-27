@@ -3,6 +3,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import socket from "@/lib/socket";
 
 const API_URL = "http://localhost:5000";
 
@@ -12,6 +13,7 @@ const statusStyles = {
     rejected: "border-red-300/20 bg-red-300/[0.08] text-red-200",
     cancelled: "border-white/10 bg-white/[0.04] text-white/45",
     completed: "border-sky-300/20 bg-sky-300/[0.08] text-sky-200",
+    expired: "border-orange-300/20 bg-orange-300/[0.08] text-orange-200",
 };
 
 function formatDate(dateString) {
@@ -33,12 +35,41 @@ function formatTime(dateString) {
 }
 
 function isUpcoming(booking) {
+    const endTime = new Date(booking.end_time).getTime();
+
     return (
-        new Date(booking.end_time).getTime() > Date.now() &&
+        Number.isFinite(endTime) &&
+        endTime > Date.now() &&
         ["pending", "approved"].includes(booking.status)
     );
 }
 
+function getDisplayStatus(booking) {
+    const endTime = new Date(booking.end_time).getTime();
+
+    if (
+        ["pending", "approved"].includes(booking.status) &&
+        Number.isFinite(endTime) &&
+        endTime <= Date.now()
+    ) {
+        return "expired";
+    }
+
+    return booking.status;
+}
+
+function getBookingActionLabel(booking) {
+    switch (booking.latest_event_type) {
+        case "booking_cancelled":
+            return "Cancelled by you";
+        case "booking_rejected":
+            return "Rejected by host";
+        case "booking_approved":
+            return "Approved by host";
+        default:
+            return null;
+    }
+}
 export default function BookingsPage() {
     const [bookings, setBookings] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -86,12 +117,47 @@ export default function BookingsPage() {
         fetchBookings();
     }, []);
 
+    useEffect(() => {
+        const token = localStorage.getItem("token");
+
+        if (!token) return;
+
+        socket.auth = { token };
+        socket.connect();
+
+        const handleBookingUpdate = (update) => {
+            if (!update || !update.booking) return;
+
+            setBookings((previous) =>
+                previous.map((booking) =>
+                    String(booking.id) === String(update.booking.id)
+                        ? {
+                            ...booking,
+                            ...update.booking,
+                            latest_event_type:
+                                update.event_type ??
+                                booking.latest_event_type,
+                            latest_event_actor_id:
+                                update.actor_id ??
+                                booking.latest_event_actor_id,
+                        }
+                        : booking
+                )
+            );
+        };
+
+        socket.on("booking_updated", handleBookingUpdate);
+
+        return () => {
+            socket.off("booking_updated", handleBookingUpdate);
+            socket.disconnect();
+        };
+    }, []);
+
     const upcomingCount = bookings.filter(isUpcoming).length;
+
     const pendingCount = bookings.filter(
-        (booking) => booking.status === "pending"
-    ).length;
-    const completedCount = bookings.filter(
-        (booking) => booking.status === "completed"
+        (booking) => getDisplayStatus(booking) === "pending"
     ).length;
 
     const filteredBookings = useMemo(() => {
@@ -101,15 +167,15 @@ export default function BookingsPage() {
 
         if (filter === "pending") {
             return bookings.filter(
-                (booking) => booking.status === "pending"
+                (booking) => getDisplayStatus(booking) === "pending"
             );
         }
 
         if (filter === "history") {
             return bookings.filter(
                 (booking) =>
-                    ["rejected", "cancelled", "completed"].includes(
-                        booking.status
+                    ["rejected", "cancelled", "completed", "expired"].includes(
+                        getDisplayStatus(booking)
                     ) || !isUpcoming(booking)
             );
         }
@@ -119,6 +185,14 @@ export default function BookingsPage() {
 
     async function cancelBooking() {
         if (!selectedBooking || cancelling) return;
+
+        // Recheck eligibility before making the request.
+        if (!isUpcoming(selectedBooking)) {
+            setCancelError(
+                "This reservation has expired and can no longer be cancelled here."
+            );
+            return;
+        }
 
         const token = localStorage.getItem("token");
 
@@ -152,7 +226,13 @@ export default function BookingsPage() {
             setBookings((previous) =>
                 previous.map((booking) =>
                     booking.id === selectedBooking.id
-                        ? { ...booking, status: "cancelled" }
+                        ? {
+                            ...booking,
+                            status: "cancelled",
+                            latest_event_type: "booking_cancelled",
+                            latest_event_actor_id: booking.user_id,
+                            latest_event_details: "Driver cancelled the booking.",
+                        }
                         : booking
                 )
             );
@@ -206,21 +286,15 @@ export default function BookingsPage() {
 
                     <div className="relative mt-9 grid grid-cols-1 gap-3 sm:grid-cols-3">
                         <div className="rounded-2xl border border-white/[0.07] bg-black/15 p-4 sm:p-5">
-                            <p className="text-xs text-white/45">
-                                Total reservations
-                            </p>
+                            <p className="text-xs text-white/45">Total reservations</p>
                             <p className="mt-2 text-3xl font-semibold tracking-tight">
                                 {bookings.length}
                             </p>
-                            <p className="mt-1 text-xs text-white/35">
-                                Across your account
-                            </p>
+                            <p className="mt-1 text-xs text-white/35">Across your account</p>
                         </div>
 
                         <div className="rounded-2xl border border-[#B8F28B]/10 bg-[#B8F28B]/[0.035] p-4 sm:p-5">
-                            <p className="text-xs text-white/45">
-                                Upcoming journeys
-                            </p>
+                            <p className="text-xs text-white/45">Upcoming journeys</p>
                             <p className="mt-2 text-3xl font-semibold tracking-tight text-[#B8F28B]">
                                 {upcomingCount}
                             </p>
@@ -230,9 +304,7 @@ export default function BookingsPage() {
                         </div>
 
                         <div className="rounded-2xl border border-white/[0.07] bg-black/15 p-4 sm:p-5">
-                            <p className="text-xs text-white/45">
-                                Awaiting response
-                            </p>
+                            <p className="text-xs text-white/45">Awaiting response</p>
                             <p className="mt-2 text-3xl font-semibold tracking-tight">
                                 {pendingCount}
                             </p>
@@ -335,94 +407,106 @@ export default function BookingsPage() {
                         </div>
                     ) : (
                         <div className="space-y-4">
-                            {filteredBookings.map((booking) => (
-                                <article
-                                    key={booking.id}
-                                    className="group overflow-hidden rounded-2xl border border-white/[0.08] bg-[#0D1510] transition duration-200 hover:border-white/[0.14]"
-                                >
-                                    <div className="flex flex-col sm:flex-row">
-                                        <div
-                                            className={`hidden w-1 shrink-0 sm:block ${booking.status === "approved"
-                                                ? "bg-[#B8F28B]/70"
-                                                : booking.status === "pending"
-                                                    ? "bg-amber-300/70"
-                                                    : booking.status === "rejected"
-                                                        ? "bg-red-300/50"
-                                                        : "bg-white/10"
-                                                }`}
-                                        />
+                            {filteredBookings.map((booking) => {
+                                const displayStatus = getDisplayStatus(booking);
 
-                                        <div className="min-w-0 flex-1 p-5 sm:p-6">
-                                            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-                                                <div className="flex min-w-0 gap-4">
-                                                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-[#B8F28B]/10 bg-[#B8F28B]/[0.05] text-xl">
-                                                        ⚡
+                                return (
+                                    <article
+                                        key={booking.id}
+                                        className="group overflow-hidden rounded-2xl border border-white/[0.08] bg-[#0D1510] transition duration-200 hover:border-white/[0.14]"
+                                    >
+                                        <div className="flex flex-col sm:flex-row">
+                                            <div
+                                                className={`hidden w-1 shrink-0 sm:block ${displayStatus === "approved"
+                                                    ? "bg-[#B8F28B]/70"
+                                                    : displayStatus === "pending"
+                                                        ? "bg-amber-300/70"
+                                                        : displayStatus === "rejected"
+                                                            ? "bg-red-300/50"
+                                                            : displayStatus === "expired"
+                                                                ? "bg-orange-300/60"
+                                                                : "bg-white/10"
+                                                    }`}
+                                            />
+
+                                            <div className="min-w-0 flex-1 p-5 sm:p-6">
+                                                <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                                                    <div className="flex min-w-0 gap-4">
+                                                        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-[#B8F28B]/10 bg-[#B8F28B]/[0.05] text-xl">
+                                                            ⚡
+                                                        </div>
+
+                                                        <div className="min-w-0">
+                                                            <p className="text-[10px] font-medium uppercase tracking-[0.16em] text-white/35">
+                                                                Reservation #{booking.id}
+                                                            </p>
+                                                            <h3 className="mt-1.5 truncate text-base font-semibold tracking-tight sm:text-lg">
+                                                                {booking.charger_title || "EV Charger"}
+                                                            </h3>
+                                                            <p className="mt-1 flex items-center gap-1.5 text-xs text-white/40">
+                                                                <span>⌖</span>
+                                                                {booking.charger_address || "Address unavailable"}
+                                                            </p>
+                                                        </div>
                                                     </div>
 
-                                                    <div className="min-w-0">
-                                                        <p className="text-[10px] font-medium uppercase tracking-[0.16em] text-white/35">
-                                                            Reservation #{booking.id}
+                                                    <div className="flex flex-col items-start gap-2">
+                                                        <span
+                                                            className={`inline-flex w-fit items-center gap-2 rounded-full border px-3 py-1.5 text-[11px] font-medium capitalize ${statusStyles[displayStatus] ||
+                                                                "border-white/10 bg-white/5 text-white/60"
+                                                                }`}
+                                                        >
+                                                            <span className="h-1.5 w-1.5 rounded-full bg-current" />
+                                                            {displayStatus}
+                                                        </span>
+
+                                                        {getBookingActionLabel(booking) && (
+                                                            <p className="text-[11px] text-white/40">
+                                                                {getBookingActionLabel(booking)}
+                                                            </p>
+                                                        )}
+                                                    </div>
+                                                </div>
+
+                                                <div className="mt-6 grid grid-cols-2 gap-4 rounded-xl border border-white/[0.05] bg-black/10 p-4 sm:grid-cols-3 sm:gap-6">
+                                                    <div>
+                                                        <p className="text-[10px] uppercase tracking-[0.12em] text-white/35">
+                                                            Date
                                                         </p>
-                                                        <h3 className="mt-1.5 truncate text-base font-semibold tracking-tight sm:text-lg">
-                                                            {booking.charger_title || "EV Charger"}
-                                                        </h3>
-                                                        <p className="mt-1 flex items-center gap-1.5 text-xs text-white/40">
-                                                            <span>⌖</span>
-                                                            {booking.charger_address || "Address unavailable"}
+                                                        <p className="mt-2 text-sm font-medium">
+                                                            {formatDate(booking.start_time)}
+                                                        </p>
+                                                    </div>
+
+                                                    <div>
+                                                        <p className="text-[10px] uppercase tracking-[0.12em] text-white/35">
+                                                            Charging time
+                                                        </p>
+                                                        <p className="mt-2 text-sm font-medium">
+                                                            {formatTime(booking.start_time)} –{" "}
+                                                            {formatTime(booking.end_time)}
+                                                        </p>
+                                                    </div>
+
+                                                    <div className="col-span-2 border-t border-white/[0.06] pt-3 sm:col-span-1 sm:border-l sm:border-t-0 sm:pl-6 sm:pt-0">
+                                                        <p className="text-[10px] uppercase tracking-[0.12em] text-white/35">
+                                                            Total price
+                                                        </p>
+                                                        <p className="mt-2 text-lg font-semibold tracking-tight text-[#B8F28B]">
+                                                            ₹{Number(booking.total_price).toFixed(2)}
                                                         </p>
                                                     </div>
                                                 </div>
 
-                                                <span
-                                                    className={`inline-flex w-fit items-center gap-2 rounded-full border px-3 py-1.5 text-[11px] font-medium capitalize ${statusStyles[booking.status] ||
-                                                        "border-white/10 bg-white/5 text-white/60"
-                                                        }`}
-                                                >
-                                                    <span className="h-1.5 w-1.5 rounded-full bg-current" />
-                                                    {booking.status}
-                                                </span>
-                                            </div>
+                                                <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                                                    <p className="text-xs text-white/40">
+                                                        Hosted by{" "}
+                                                        <span className="text-white/65">
+                                                            {booking.host_name || "Charger host"}
+                                                        </span>
+                                                    </p>
 
-                                            <div className="mt-6 grid grid-cols-2 gap-4 rounded-xl border border-white/[0.05] bg-black/10 p-4 sm:grid-cols-3 sm:gap-6">
-                                                <div>
-                                                    <p className="text-[10px] uppercase tracking-[0.12em] text-white/35">
-                                                        Date
-                                                    </p>
-                                                    <p className="mt-2 text-sm font-medium">
-                                                        {formatDate(booking.start_time)}
-                                                    </p>
-                                                </div>
-
-                                                <div>
-                                                    <p className="text-[10px] uppercase tracking-[0.12em] text-white/35">
-                                                        Charging time
-                                                    </p>
-                                                    <p className="mt-2 text-sm font-medium">
-                                                        {formatTime(booking.start_time)} –{" "}
-                                                        {formatTime(booking.end_time)}
-                                                    </p>
-                                                </div>
-
-                                                <div className="col-span-2 border-t border-white/[0.06] pt-3 sm:col-span-1 sm:border-l sm:border-t-0 sm:pl-6 sm:pt-0">
-                                                    <p className="text-[10px] uppercase tracking-[0.12em] text-white/35">
-                                                        Total price
-                                                    </p>
-                                                    <p className="mt-2 text-lg font-semibold tracking-tight text-[#B8F28B]">
-                                                        ₹{Number(booking.total_price).toFixed(2)}
-                                                    </p>
-                                                </div>
-                                            </div>
-
-                                            <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                                                <p className="text-xs text-white/40">
-                                                    Hosted by{" "}
-                                                    <span className="text-white/65">
-                                                        {booking.host_name || "Charger host"}
-                                                    </span>
-                                                </p>
-
-                                                {(booking.status === "pending" ||
-                                                    booking.status === "approved") && (
+                                                    {isUpcoming(booking) && (
                                                         <button
                                                             onClick={() => {
                                                                 setSelectedBooking(booking);
@@ -434,11 +518,12 @@ export default function BookingsPage() {
                                                             Cancel reservation
                                                         </button>
                                                     )}
+                                                </div>
                                             </div>
                                         </div>
-                                    </div>
-                                </article>
-                            ))}
+                                    </article>
+                                );
+                            })}
                         </div>
                     )}
                 </section>
@@ -454,10 +539,7 @@ export default function BookingsPage() {
                 <div
                     className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 px-4 py-6 backdrop-blur-sm"
                     onMouseDown={(event) => {
-                        if (
-                            event.target === event.currentTarget &&
-                            !cancelling
-                        ) {
+                        if (event.target === event.currentTarget && !cancelling) {
                             setSelectedBooking(null);
                             setCancelError("");
                         }

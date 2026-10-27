@@ -4,6 +4,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import NotificationBell from "../components/NotificationBell";
 
 const API_URL = "http://localhost:5000/api";
 
@@ -273,14 +274,23 @@ export default function DashboardPage() {
                             </div>
 
                             <div className="flex items-center gap-3">
-                                <div className="hidden text-right sm:block">
-                                    <p className="text-sm font-medium">EV Driver</p>
-                                    <p className="mt-1 text-xs text-white/35">
-                                        Driver account
-                                    </p>
+                                {/* Desktop: Keep the existing EV Driver profile */}
+                                <div className="hidden items-center gap-3 sm:flex">
+                                    <div className="text-right">
+                                        <p className="text-sm font-medium">EV Driver</p>
+                                        <p className="mt-1 text-xs text-white/35">
+                                            Driver account
+                                        </p>
+                                    </div>
+
+                                    <div className="flex h-10 w-10 items-center justify-center rounded-full border border-[#B5FFCE]/20 bg-[#B5FFCE]/10 text-sm font-semibold text-[#B5FFCE]">
+                                        EV
+                                    </div>
                                 </div>
-                                <div className="flex h-10 w-10 items-center justify-center rounded-full border border-[#B5FFCE]/20 bg-[#B5FFCE]/10 text-sm font-semibold text-[#B5FFCE]">
-                                    EV
+
+                                {/* Mobile: Show the notification bell in the same place */}
+                                <div className="sm:hidden">
+                                    <NotificationBell />
                                 </div>
                             </div>
                         </div>

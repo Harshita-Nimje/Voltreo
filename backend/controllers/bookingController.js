@@ -1,4 +1,5 @@
 const pool = require("../db");
+const createNotification = require("../utils/notificationHelper");
 
 const createBooking = async (req, res) => {
     try {
@@ -93,7 +94,16 @@ const createBooking = async (req, res) => {
         const endParts = getIndiaDateParts(end);
 
         // Keep bookings within a single calendar day for now
-        if (startParts.day !== endParts.day) {
+        // Keep bookings within a single Indian calendar day
+        const getIndiaCalendarDate = (date) =>
+            new Intl.DateTimeFormat("en-CA", {
+                timeZone: "Asia/Kolkata",
+                year: "numeric",
+                month: "2-digit",
+                day: "2-digit",
+            }).format(date);
+
+        if (getIndiaCalendarDate(start) !== getIndiaCalendarDate(end)) {
             return res.status(400).json({
                 message: "Bookings must start and end on the same day.",
             });
@@ -163,6 +173,36 @@ const createBooking = async (req, res) => {
             ]
         );
 
+        // Save and send a notification to the charger host
+        const io = req.app.get("io");
+
+        await createNotification({
+            pool,
+            io,
+            userId: charger.host_id,
+            bookingId: booking.id,
+            title: "New booking request",
+            message: "You have received a new booking request.",
+            eventType: "booking_created",
+            booking: {
+                ...booking,
+                host_id: charger.host_id,
+            },
+            actorId: req.user.id,
+        });
+
+        if (io) {
+            io.to(`user_${charger.host_id}`).emit("booking_updated", {
+                booking: {
+                    ...booking,
+                    host_id: charger.host_id,
+                },
+                event_type: "booking_created",
+                actor_id: req.user.id,
+                message: "You have received a new booking request.",
+            });
+        }
+
         // Send the response
         return res.status(201).json({
             message: "Booking request created successfully.",
@@ -189,21 +229,36 @@ const getMyBookings = async (req, res) => {
     try {
         const result = await pool.query(
             `SELECT
-         b.id,
-         b.charger_id,
-         b.start_time,
-         b.end_time,
-         b.total_price,
-         b.status,
-         b.created_at,
-         c.title AS charger_title,
-         c.address AS charger_address,
-         u.name AS host_name
-       FROM bookings b
-       JOIN chargers c ON c.id = b.charger_id
-       JOIN users u ON u.id = c.host_id
-       WHERE b.user_id = $1
-       ORDER BY b.created_at DESC`,
+                b.id,
+                b.charger_id,
+                b.user_id,
+                c.host_id,
+                b.start_time,
+                b.end_time,
+                b.total_price,
+                b.status,
+                b.created_at,
+                c.title AS charger_title,
+                c.address AS charger_address,
+                u.name AS host_name,
+                latest_event.event_type AS latest_event_type,
+                latest_event.actor_id AS latest_event_actor_id,
+                latest_event.details AS latest_event_details
+            FROM bookings b
+            JOIN chargers c ON c.id = b.charger_id
+            JOIN users u ON u.id = c.host_id
+            LEFT JOIN LATERAL (
+                SELECT
+                    be.event_type,
+                    be.actor_id,
+                    be.details
+                FROM booking_events be
+                WHERE be.booking_id = b.id
+                ORDER BY be.created_at DESC
+                LIMIT 1
+            ) latest_event ON TRUE
+            WHERE b.user_id = $1
+            ORDER BY b.created_at DESC`,
             [req.user.id]
         );
 
@@ -255,6 +310,8 @@ const getHostBookings = async (req, res) => {
 };
 
 const updateBookingStatus = async (req, res) => {
+    const client = await pool.connect();
+
     try {
         const { id } = req.params;
         const { status } = req.body;
@@ -266,20 +323,24 @@ const updateBookingStatus = async (req, res) => {
             });
         }
 
+        await client.query("BEGIN");
+
         // Update only a pending booking owned by this host
-        const result = await pool.query(
+        const result = await client.query(
             `UPDATE bookings b
-             SET status = $1
-             FROM chargers c
-             WHERE b.id = $2
-               AND b.charger_id = c.id
-               AND c.host_id = $3
-               AND b.status = 'pending'
-             RETURNING b.*`,
+     SET status = $1
+     FROM chargers c
+     WHERE b.id = $2
+       AND b.charger_id = c.id
+       AND c.host_id = $3
+       AND b.status = 'pending'
+     RETURNING b.*, c.host_id`,
             [status, id, req.user.id]
         );
 
         if (result.rows.length === 0) {
+            await client.query("ROLLBACK");
+
             return res.status(404).json({
                 message:
                     "Pending booking not found, or you are not its charger host.",
@@ -288,8 +349,8 @@ const updateBookingStatus = async (req, res) => {
 
         const booking = result.rows[0];
 
-        // Record the approval or rejection event
-        await pool.query(
+        // Record the status-change event in the same transaction
+        await client.query(
             `INSERT INTO booking_events
                 (booking_id, actor_id, event_type, details)
              VALUES ($1, $2, $3, $4)`,
@@ -301,11 +362,78 @@ const updateBookingStatus = async (req, res) => {
             ]
         );
 
+        await client.query("COMMIT");
+
+        const io = req.app.get("io");
+
+        const notificationTitle =
+            status === "approved"
+                ? "Booking approved"
+                : "Booking rejected";
+
+        const notificationMessage =
+            status === "approved"
+                ? "Your booking request has been approved by the host."
+                : "Your booking request has been rejected by the host.";
+
+        // Save a notification for the driver
+        await createNotification({
+            pool,
+            io,
+            userId: booking.user_id,
+            bookingId: booking.id,
+            title: notificationTitle,
+            message: notificationMessage,
+            eventType: `booking_${status}`,
+            booking,
+            actorId: req.user.id,
+        });
+
+        // Keep the host's booking list updated in real time
+        if (io) {
+            io.to(`user_${booking.host_id}`).emit("booking_updated", {
+                booking,
+                event_type: `booking_${status}`,
+                actor_id: req.user.id,
+                message: `You ${status} the booking request.`,
+            });
+        }
+
+        if (io) {
+            const notificationUpdate = {
+                booking,
+                event_type: `booking_${status}`,
+                actor_id: req.user.id,
+                message:
+                    status === "approved"
+                        ? "Your booking has been approved by the host."
+                        : "Your booking request has been rejected by the host.",
+            };
+
+            // Notify the driver
+            io.to(`user_${booking.user_id}`).emit(
+                "booking_updated",
+                notificationUpdate
+            );
+
+            // Notify the host
+            io.to(`user_${booking.host_id}`).emit(
+                "booking_updated",
+                notificationUpdate
+            );
+        }
+
         return res.status(200).json({
             message: `Booking ${status} successfully.`,
             booking,
         });
     } catch (error) {
+        try {
+            await client.query("ROLLBACK");
+        } catch (rollbackError) {
+            console.error("Booking rollback error:", rollbackError.message);
+        }
+
         // Handle overlapping active-booking conflicts
         if (error.code === "23P01") {
             return res.status(409).json({
@@ -319,40 +447,105 @@ const updateBookingStatus = async (req, res) => {
         return res.status(500).json({
             message: "Something went wrong while updating the booking.",
         });
+    } finally {
+        client.release();
     }
 };
 
+
 const cancelBooking = async (req, res) => {
-    const { id } = req.params;
+    const client = await pool.connect();
 
     try {
-        const result = await pool.query(
-            `UPDATE bookings
-       SET status = 'cancelled'
-       WHERE id = $1
-         AND user_id = $2
-         AND status IN ('pending', 'approved')
-       RETURNING *`,
+        const { id } = req.params;
+
+        await client.query("BEGIN");
+
+        const result = await client.query(
+            `UPDATE bookings b
+             SET status = 'cancelled'
+             FROM chargers c
+             WHERE b.id = $1
+               AND b.user_id = $2
+               AND b.charger_id = c.id
+               AND b.status IN ('pending', 'approved')
+               AND b.end_time > NOW()
+             RETURNING b.*, c.host_id`,
             [id, req.user.id]
         );
 
         if (result.rows.length === 0) {
+            await client.query("ROLLBACK");
+
             return res.status(404).json({
                 message:
-                    "Booking not found, or it cannot be cancelled.",
+                    "Booking not found, already ended, or cannot be cancelled.",
+            });
+        }
+
+        const booking = result.rows[0];
+
+        // Record the cancellation event
+        await client.query(
+            `INSERT INTO booking_events
+                (booking_id, actor_id, event_type, details)
+             VALUES ($1, $2, $3, $4)`,
+            [
+                booking.id,
+                req.user.id,
+                "booking_cancelled",
+                "Driver cancelled the booking.",
+            ]
+        );
+
+        await client.query("COMMIT");
+
+        const io = req.app.get("io");
+
+        // Save a notification for the charger host
+        await createNotification({
+            pool,
+            io,
+            userId: booking.host_id,
+            bookingId: booking.id,
+            title: "Booking cancelled",
+            message: "The driver has cancelled their booking.",
+            eventType: "booking_cancelled",
+            booking,
+            actorId: req.user.id,
+        });
+
+        // Update the driver's booking list in real time
+        if (io) {
+            io.to(`user_${booking.user_id}`).emit("booking_updated", {
+                booking,
+                event_type: "booking_cancelled",
+                actor_id: req.user.id,
+                message: "You cancelled this booking.",
             });
         }
 
         return res.status(200).json({
             message: "Booking cancelled successfully.",
-            booking: result.rows[0],
+            booking,
         });
     } catch (error) {
+        try {
+            await client.query("ROLLBACK");
+        } catch (rollbackError) {
+            console.error(
+                "Booking rollback error:",
+                rollbackError.message
+            );
+        }
+
         console.error("Cancel booking error:", error.message);
 
         return res.status(500).json({
             message: "Failed to cancel booking.",
         });
+    } finally {
+        client.release();
     }
 };
 
