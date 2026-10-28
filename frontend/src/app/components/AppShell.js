@@ -21,7 +21,7 @@ export default function AppShell({ children }) {
         <div className="min-h-screen bg-[#080D0B] text-white">
             <Sidebar />
 
-            <div className="fixed right-4 top-4 z-[70] hidden sm:block lg:right-6">
+            <div className="fixed right-4 top-4 z-[70] lg:right-6">
                 <NotificationBell />
             </div>
 

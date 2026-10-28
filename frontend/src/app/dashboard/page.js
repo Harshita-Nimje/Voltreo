@@ -287,11 +287,6 @@ export default function DashboardPage() {
                                         EV
                                     </div>
                                 </div>
-
-                                {/* Mobile: Show the notification bell in the same place */}
-                                <div className="sm:hidden">
-                                    <NotificationBell />
-                                </div>
                             </div>
                         </div>
 

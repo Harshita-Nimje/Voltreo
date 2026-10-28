@@ -33,9 +33,9 @@ const createBooking = async (req, res) => {
             });
         }
 
-        // Check whether the charger exists and is approved
+        // Fetch approved charger details, including its title
         const chargerResult = await pool.query(
-            `SELECT id, host_id, price_per_hour
+            `SELECT id, host_id, title, price_per_hour
              FROM chargers
              WHERE id = $1 AND status = 'approved'`,
             [charger_id]
@@ -48,6 +48,13 @@ const createBooking = async (req, res) => {
         }
 
         const charger = chargerResult.rows[0];
+
+        // Prevent hosts from booking their own chargers
+        if (Number(charger.host_id) === Number(req.user.id)) {
+            return res.status(400).json({
+                message: "You cannot book your own charger.",
+            });
+        }
 
         // Validate charger availability using Indian Standard Time
         const availabilityResult = await pool.query(
@@ -93,8 +100,6 @@ const createBooking = async (req, res) => {
         const startParts = getIndiaDateParts(start);
         const endParts = getIndiaDateParts(end);
 
-        // Keep bookings within a single calendar day for now
-        // Keep bookings within a single Indian calendar day
         const getIndiaCalendarDate = (date) =>
             new Intl.DateTimeFormat("en-CA", {
                 timeZone: "Asia/Kolkata",
@@ -103,7 +108,11 @@ const createBooking = async (req, res) => {
                 day: "2-digit",
             }).format(date);
 
-        if (getIndiaCalendarDate(start) !== getIndiaCalendarDate(end)) {
+        // Keep bookings within one Indian calendar day
+        if (
+            getIndiaCalendarDate(start) !==
+            getIndiaCalendarDate(end)
+        ) {
             return res.status(400).json({
                 message: "Bookings must start and end on the same day.",
             });
@@ -127,17 +136,10 @@ const createBooking = async (req, res) => {
             });
         }
 
-
-        // Prevent hosts from booking their own chargers
-        if (Number(charger.host_id) === Number(req.user.id)) {
-            return res.status(400).json({
-                message: "You cannot book your own charger.",
-            });
-        }
-
         // Calculate booking duration and total price
         const durationHours =
-            (end.getTime() - start.getTime()) / (1000 * 60 * 60);
+            (end.getTime() - start.getTime()) /
+            (1000 * 60 * 60);
 
         const totalPrice = (
             durationHours * Number(charger.price_per_hour)
@@ -150,7 +152,7 @@ const createBooking = async (req, res) => {
              VALUES ($1, $2, $3, $4, $5, 'pending')
              RETURNING *`,
             [
-                charger_id,
+                charger.id,
                 req.user.id,
                 start.toISOString(),
                 end.toISOString(),
@@ -160,7 +162,7 @@ const createBooking = async (req, res) => {
 
         const booking = result.rows[0];
 
-        // Record the booking creation event
+        // Record booking creation
         await pool.query(
             `INSERT INTO booking_events
                 (booking_id, actor_id, event_type, details)
@@ -173,40 +175,54 @@ const createBooking = async (req, res) => {
             ]
         );
 
-        // Save and send a notification to the charger host
+        // Format the booking date and time in IST
+        const bookingDate = new Intl.DateTimeFormat("en-IN", {
+            timeZone: "Asia/Kolkata",
+            day: "2-digit",
+            month: "short",
+            year: "numeric",
+        }).format(start);
+
+        const formatTime = (date) =>
+            new Intl.DateTimeFormat("en-IN", {
+                timeZone: "Asia/Kolkata",
+                hour: "2-digit",
+                minute: "2-digit",
+                hour12: true,
+            }).format(date);
+
+        const bookingTime =
+            `${formatTime(start)} – ${formatTime(end)}`;
+
+        const notificationMessage =
+            `A driver has requested "${charger.title}" for ${bookingDate}, ${bookingTime}.`;
+
         const io = req.app.get("io");
 
+        // Include charger details in the booking payload
+        const bookingWithDetails = {
+            ...booking,
+            charger_id: charger.id,
+            charger_title: charger.title,
+            host_id: charger.host_id,
+        };
+
+        // Save and send a detailed notification to the host
         await createNotification({
             pool,
             io,
             userId: charger.host_id,
             bookingId: booking.id,
             title: "New booking request",
-            message: "You have received a new booking request.",
+            message: notificationMessage,
             eventType: "booking_created",
-            booking: {
-                ...booking,
-                host_id: charger.host_id,
-            },
+            booking: bookingWithDetails,
             actorId: req.user.id,
         });
 
-        if (io) {
-            io.to(`user_${charger.host_id}`).emit("booking_updated", {
-                booking: {
-                    ...booking,
-                    host_id: charger.host_id,
-                },
-                event_type: "booking_created",
-                actor_id: req.user.id,
-                message: "You have received a new booking request.",
-            });
-        }
-
-        // Send the response
         return res.status(201).json({
             message: "Booking request created successfully.",
-            booking,
+            booking: bookingWithDetails,
         });
     } catch (error) {
         // Handle overlapping booking conflicts

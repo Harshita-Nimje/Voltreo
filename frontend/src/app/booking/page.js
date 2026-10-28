@@ -6,7 +6,13 @@ import { useRouter } from "next/navigation";
 
 const API_URL = "http://localhost:5000/api";
 
+
 function hasBookingConflict(bookingDate, startTime, endTime, bookedSlots) {
+    console.log("Booking form values:", {
+        bookingDate,
+        startTime,
+        endTime,
+    });
     if (!bookingDate || !startTime || !endTime) {
         return false;
     }

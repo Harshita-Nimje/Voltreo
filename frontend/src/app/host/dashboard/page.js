@@ -3,6 +3,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import socket from "@/lib/socket";
 
 const API_URL = "http://localhost:5000/api";
 
@@ -31,6 +32,8 @@ export default function HostDashboardPage() {
                 setUser(null);
             }
         }
+
+        let isMounted = true;
 
         const fetchDashboard = async () => {
             try {
@@ -61,19 +64,47 @@ export default function HostDashboardPage() {
                     );
                 }
 
-                setChargers(chargerData.chargers || []);
-                setBookings(bookingData.bookings || []);
+                if (isMounted) {
+                    setChargers(chargerData.chargers || []);
+                    setBookings(bookingData.bookings || []);
+                    setError("");
+                }
             } catch (err) {
-                setError(
-                    err.message ||
-                    "Something went wrong while loading your dashboard."
-                );
+                if (isMounted) {
+                    setError(
+                        err.message ||
+                        "Something went wrong while loading your dashboard."
+                    );
+                }
             } finally {
-                setLoading(false);
+                if (isMounted) {
+                    setLoading(false);
+                }
             }
         };
 
+        // Load dashboard data when the page opens.
         fetchDashboard();
+
+        // Refresh booking data whenever the backend broadcasts a booking update.
+        const handleBookingUpdate = () => {
+            fetchDashboard();
+        };
+
+        socket.on("booking_updated", handleBookingUpdate);
+
+        // Recover from a brief disconnect and fetch the latest data.
+        const handleReconnect = () => {
+            fetchDashboard();
+        };
+
+        socket.on("connect", handleReconnect);
+
+        return () => {
+            isMounted = false;
+            socket.off("booking_updated", handleBookingUpdate);
+            socket.off("connect", handleReconnect);
+        };
     }, [router]);
 
     const pendingCount = bookings.filter(
