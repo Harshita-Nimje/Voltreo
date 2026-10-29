@@ -2,19 +2,53 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import socket from "@/lib/socket";
 
 const API_URL = "http://localhost:5000/api";
 
 export default function HostDashboardPage() {
     const router = useRouter();
+    const searchParams = useSearchParams();
+    const bookingId = searchParams.get("bookingId");
 
     const [user, setUser] = useState(null);
     const [chargers, setChargers] = useState([]);
     const [bookings, setBookings] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
+    const [highlightedBookingId, setHighlightedBookingId] = useState(null);
+
+
+    useEffect(() => {
+        if (!bookingId || bookings.length === 0) return;
+
+        const booking = bookings.find(
+            (item) => String(item.id) === String(bookingId)
+        );
+
+        if (!booking) return;
+
+        setHighlightedBookingId(booking.id);
+
+        const scrollTimer = setTimeout(() => {
+            document
+                .getElementById(`booking-${bookingId}`)
+                ?.scrollIntoView({
+                    behavior: "smooth",
+                    block: "center",
+                });
+        }, 100);
+
+        const glowTimer = setTimeout(() => {
+            setHighlightedBookingId(null);
+        }, 4000);
+
+        return () => {
+            clearTimeout(scrollTimer);
+            clearTimeout(glowTimer);
+        };
+    }, [bookingId, bookings]);
 
     useEffect(() => {
         const token = localStorage.getItem("token");
@@ -486,7 +520,11 @@ export default function HostDashboardPage() {
                                         {bookings.slice(0, 5).map((booking) => (
                                             <div
                                                 key={booking.id}
-                                                className="flex flex-col gap-4 px-5 py-5 transition hover:bg-white/[0.02] sm:flex-row sm:items-center sm:justify-between sm:px-6"
+                                                id={`booking-${booking.id}`}
+                                                className={`flex flex-col gap-4 rounded-xl border px-5 py-5 transition-all duration-500 sm:flex-row sm:items-center sm:justify-between sm:px-6 ${String(highlightedBookingId) === String(booking.id)
+                                                        ? "border-[#B5FFCE]/70 bg-[#B5FFCE]/10 shadow-[0_0_30px_rgba(181,255,206,0.12)] ring-1 ring-[#B5FFCE]/40"
+                                                        : "border-transparent hover:bg-white/[0.02]"
+                                                    }`}
                                             >
                                                 <div className="flex min-w-0 items-start gap-4">
                                                     <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-white/[0.07] bg-white/[0.025] text-[#B5FFCE]">

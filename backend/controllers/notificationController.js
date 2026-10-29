@@ -107,8 +107,30 @@ const markAllNotificationsRead = async (req, res) => {
     }
 };
 
+// Clear all notifications for the logged-in user
+const clearAllNotifications = async (req, res) => {
+    try {
+        await pool.query(
+            `DELETE FROM notifications
+             WHERE user_id = $1`,
+            [req.user.id]
+        );
+
+        return res.status(200).json({
+            message: "All notifications cleared.",
+        });
+    } catch (error) {
+        console.error("Clear notifications error:", error.message);
+
+        return res.status(500).json({
+            message: "Unable to clear notifications.",
+        });
+    }
+};
+
 module.exports = {
     getNotifications,
     markNotificationRead,
     markAllNotificationsRead,
+    clearAllNotifications,
 };

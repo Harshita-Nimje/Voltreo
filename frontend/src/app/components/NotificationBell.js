@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import socket from "@/lib/socket";
 
 export default function NotificationBell() {
@@ -9,6 +10,7 @@ export default function NotificationBell() {
     const [isOpen, setIsOpen] = useState(false);
     const [loading, setLoading] = useState(false);
     const dropdownRef = useRef(null);
+    const router = useRouter();
 
     const getToken = () =>
         typeof window !== "undefined"
@@ -175,6 +177,76 @@ export default function NotificationBell() {
         }
     }
 
+    async function clearAllNotifications() {
+        const token = getToken();
+        if (!token || notifications.length === 0) return;
+
+        try {
+            const response = await fetch(
+                "http://localhost:5000/api/notifications/clear",
+                {
+                    method: "DELETE",
+                    headers: {
+                        Authorization: `Bearer ${token}`,
+                    },
+                }
+            );
+
+            if (!response.ok) {
+                throw new Error("Unable to clear notifications.");
+            }
+
+            setNotifications([]);
+            setUnreadCount(0);
+        } catch (error) {
+            console.error("Clear notifications error:", error.message);
+        }
+    }
+
+    async function handleNotificationClick(notification) {
+        // Mark the notification as read
+        await markAsRead(notification.id);
+
+        // Get the associated booking ID
+        const bookingId =
+            notification.booking_id ||
+            notification.booking_details?.id;
+
+        setIsOpen(false);
+
+        if (!bookingId) {
+            console.warn("This notification has no associated booking ID.");
+            return;
+        }
+
+        // Read the user's role from the saved JWT
+        const token = getToken();
+
+        let role = "";
+
+        try {
+            if (token) {
+                const payload = JSON.parse(
+                    atob(token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/"))
+                );
+
+                role = payload.role || payload.user?.role || "";
+            }
+        } catch (error) {
+            console.error("Unable to determine user role:", error);
+        }
+
+        // Navigate to the appropriate dashboard and pass the booking ID
+        const destination =
+            role === "host"
+                ? "/host/dashboard"
+                : "/dashboard";
+
+        router.push(
+            `${destination}?bookingId=${encodeURIComponent(bookingId)}`
+        );
+    }
+
     return (
         <div ref={dropdownRef} className="relative">
             <button
@@ -271,9 +343,7 @@ export default function NotificationBell() {
                                 <button
                                     key={notification.id}
                                     type="button"
-                                    onClick={() =>
-                                        markAsRead(notification.id)
-                                    }
+                                    onClick={() => handleNotificationClick(notification)}
                                     className={`flex w-full gap-3 border-b border-white/[0.05] px-4 py-4 text-left transition hover:bg-white/[0.035] ${notification.is_read
                                         ? "opacity-65"
                                         : "bg-[#B8F28B]/[0.035]"
